@@ -1,6 +1,6 @@
 # Minecraft-Status für Discord
 
-Zeigt in einem Discord-Kanal eine Nachricht, die sich alle ~10 Minuten selbst aktualisiert:
+Zeigt in einem Discord-Kanal eine Nachricht, die sich alle ~2 Minuten selbst aktualisiert:
 
 - 🟢 **Online**: Spielerzahl und Namen
 - 🟡 **Startet gerade**
@@ -54,6 +54,6 @@ Ab dann aktualisiert sie sich automatisch. Löscht jemand die Nachricht, wird be
 
 ## Gut zu wissen
 
-- GitHub startet geplante Läufe manchmal ein paar Minuten zu spät. Der Status kann also bis zu ~15 Minuten hinterherhinken.
+- Der Workflow startet alle 5 Minuten (kürzer erlaubt GitHub nicht) und prüft pro Lauf 3-mal im Abstand von ~2 Minuten. GitHub startet geplante Läufe aber manchmal ein paar Minuten zu spät, dann kann der Status auch mal länger hinterherhinken.
 - Deine Freunde brauchen für den Start-Link einen Aternos-Account mit **Zugriff** auf deinen Server (Aternos → „Zugriff“).
 - Zieht ihr später auf einen anderen Server um (z. B. Oracle), einfach `MC_SERVER_ADDRESS` ändern und `START_LINK` auf etwas Passendes setzen.
