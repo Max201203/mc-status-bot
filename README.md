@@ -1,6 +1,6 @@
 # Minecraft-Status für Discord
 
-Zeigt in einem Discord-Kanal eine Nachricht, die sich alle ~2 Minuten selbst aktualisiert:
+Zeigt in einem Discord-Kanal eine Nachricht, die sich alle paar Minuten selbst aktualisiert:
 
 - 🟢 **Online**: Spielerzahl und Namen
 - 🟡 **Startet gerade**
@@ -50,10 +50,32 @@ Außerdem: **Settings** → **Actions** → **General** → ganz unten bei „Wo
 
 Ab dann aktualisiert sie sich automatisch. Löscht jemand die Nachricht, wird beim nächsten Lauf einfach eine neue erstellt.
 
+## 5. Pünktlicher Status mit cron-job.org
+
+GitHub startet geplante Läufe unzuverlässig. Deshalb stößt der kostenlose Dienst **cron-job.org** den Workflow regelmäßig an (wie ein Klick auf „Run workflow“).
+
+1. **GitHub-Schlüssel erstellen:** Profilbild → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
+   - **Repository access:** *Only select repositories* → `mc-status-bot`
+   - **Repository permissions** → **Actions:** *Read and write*
+   - Schlüssel kopieren. Er ist geheim und gehört nur in cron-job.org, nie ins Repository.
+2. **Cronjob auf cron-job.org anlegen:**
+   - **URL:** `https://api.github.com/repos/<dein-name>/mc-status-bot/actions/workflows/status.yml/dispatches`
+   - **Terminplan:** z. B. alle 2 Minuten
+   - Reiter **Erweitert** → **Header:**
+     - `Authorization`: `Bearer <dein Schlüssel>`
+     - `Accept`: `application/vnd.github+json`
+     - `X-GitHub-Api-Version`: `2022-11-28`
+     - `Content-Type`: `application/json`
+   - **Anfrage-Methode:** `POST`
+   - **Anfrage-Body:** `{"ref":"main"}`
+3. **Testlauf** muss **204** liefern, dann **Erstellen**.
+
+Der Schlüssel läuft irgendwann ab (Datum steht bei GitHub). Dann einen neuen erstellen und im Cronjob austauschen.
+
 ---
 
 ## Gut zu wissen
 
-- Der Workflow startet alle 5 Minuten (kürzer erlaubt GitHub nicht) und prüft pro Lauf 3-mal im Abstand von ~2 Minuten. GitHub startet geplante Läufe aber manchmal ein paar Minuten zu spät, dann kann der Status auch mal länger hinterherhinken.
+- GitHubs eigener Zeitplan (alle 15 Minuten) ist nur eine Reserve: GitHub startet geplante Läufe oft verspätet oder gar nicht. Für einen pünktlichen Status siehe Abschnitt 5.
 - Deine Freunde brauchen für den Start-Link einen Aternos-Account mit **Zugriff** auf deinen Server (Aternos → „Zugriff“).
 - Zieht ihr später auf einen anderen Server um (z. B. Oracle), einfach `MC_SERVER_ADDRESS` ändern und `START_LINK` auf etwas Passendes setzen.
