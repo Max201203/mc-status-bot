@@ -11,12 +11,15 @@ Es wird nur der normale Minecraft-Status abgefragt, kein Login bei Aternos.
 
 import json
 import os
+import socket
+import struct
 import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
 from mcstatus import JavaServer
+from mcstatus.responses import JavaStatusResponse
 
 SERVER_ADDRESS = os.environ["MC_SERVER_ADDRESS"].strip()       # z. B. deinname.aternos.me
 WEBHOOK_URL = os.environ["DISCORD_WEBHOOK_URL"].strip()
@@ -25,16 +28,77 @@ MESSAGE_ID_FILE = os.environ.get("MESSAGE_ID_FILE", "status_message_id.txt")
 
 # Woran man erkennt, dass Aternos nur die "Server ist aus"-Platzhalterseite zeigt.
 ATERNOS_NOT_RUNNING = ("offline", "starting", "preparing", "loading",
-                       "stopping", "saving", "queue", "waiting")
+                       "stopping", "saving", "queue", "waiting",
+                       "error", "not found")
+
+
+def _varint(value):
+    out = b""
+    while True:
+        byte = value & 0x7F
+        value >>= 7
+        if value:
+            out += bytes([byte | 0x80])
+        else:
+            return out + bytes([byte])
+
+
+def _packet(packet_id, data=b""):
+    body = _varint(packet_id) + data
+    return _varint(len(body)) + body
+
+
+def _recv_exact(sock, size):
+    data = b""
+    while len(data) < size:
+        chunk = sock.recv(size - len(data))
+        if not chunk:
+            raise ConnectionError("Server hat die Verbindung geschlossen")
+        data += chunk
+    return data
+
+
+def _read_varint(sock):
+    value = 0
+    for i in range(5):
+        byte = _recv_exact(sock, 1)[0]
+        value |= (byte & 0x7F) << (7 * i)
+        if not byte & 0x80:
+            return value
+    raise ValueError("Ungültige Antwort vom Server")
+
+
+def ping_status(address, timeout=8):
+    """Server List Ping, genau wie die Serverliste im Spiel.
+
+    Handshake und Status-Anfrage werden in EINEM Stück gesendet. Der
+    Aternos-Proxy antwortet sonst nicht: mcstatus' eigenes .status() schickt
+    die Pakete in Einzelteilen und läuft bei Aternos deshalb in einen Timeout.
+    """
+    target = JavaServer.lookup(address, timeout=timeout).address  # SRV-Eintrag / Port auflösen
+    host = target.host.encode()
+    handshake = _varint(47) + _varint(len(host)) + host + struct.pack(">H", target.port) + _varint(1)
+    with socket.create_connection((target.host, target.port), timeout=timeout) as sock:
+        sock.sendall(_packet(0, handshake) + _packet(0))
+        _read_varint(sock)  # Paketlänge
+        if _read_varint(sock) != 0:
+            raise ValueError("Unerwartete Antwort vom Server")
+        raw = _recv_exact(sock, _read_varint(sock))
+    return JavaStatusResponse.build(json.loads(raw))
 
 
 def check_server():
     """Gibt (status, details) zurück. status ist 'online', 'starting' oder 'offline'."""
-    try:
-        status = JavaServer.lookup(SERVER_ADDRESS, timeout=8).status()
-    except Exception as exc:  # nicht erreichbar = aus
-        print(f"Server nicht erreichbar: {type(exc).__name__}: {exc}")
-        return "offline", {"error": str(exc)}
+    status, error = None, None
+    for _ in range(2):  # zweiter Versuch bei kurzen Netzwerkproblemen
+        try:
+            status = ping_status(SERVER_ADDRESS)
+            break
+        except Exception as exc:
+            error = exc
+    if status is None:  # nicht erreichbar = aus
+        print(f"Server nicht erreichbar: {type(error).__name__}: {error}")
+        return "offline", {"error": str(error)}
 
     version = (status.version.name or "").lower()
     try:
