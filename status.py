@@ -33,6 +33,7 @@ def check_server():
     try:
         status = JavaServer.lookup(SERVER_ADDRESS, timeout=8).status()
     except Exception as exc:  # nicht erreichbar = aus
+        print(f"Server nicht erreichbar: {type(exc).__name__}: {exc}")
         return "offline", {"error": str(exc)}
 
     version = (status.version.name or "").lower()
@@ -40,6 +41,8 @@ def check_server():
         motd = status.motd.to_plain().lower()
     except AttributeError:
         motd = str(status.description).lower()
+    print(f"Antwort vom Server -> Version: {status.version.name!r} | "
+          f"MOTD: {motd!r} | Spieler: {status.players.online}/{status.players.max}")
 
     text = version + " " + motd
     if any(word in text for word in ("starting", "preparing", "loading", "queue", "waiting")):
