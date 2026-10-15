@@ -17,9 +17,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      # Immer den neuesten Stand holen (auch bei "Re-run"), damit die
+      # gespeicherte Nachrichten-ID gefunden wird.
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -44,8 +48,8 @@ jobs:
           git add status_message_id.txt 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git commit -m "Statusnachricht gespeichert"
-            git push
+            git push || (git pull --rebase && git push)
           elif [ "$age_days" -ge 50 ]; then
             git commit --allow-empty -m "Keep-alive"
-            git push
+            git push || (git pull --rebase && git push)
           fi
