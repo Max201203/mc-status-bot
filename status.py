@@ -147,13 +147,29 @@ def build_embed(state, details):
     return {
         "title": "🔴 Server ist AUS",
         "description": (
-            f"**[➜ Hier klicken und auf „Starten“ drücken]({START_LINK})**\n"
+            "Klick auf den Button unten und dann auf „Starten“.\n"
             f"Nach ca. 1 Minute kannst du joinen: `{SERVER_ADDRESS}`"
         ),
         "color": 0xFF4040,
         "footer": {"text": "zuletzt geprüft"},
         "timestamp": now,
     }
+
+
+def build_components(state):
+    """Button „Server starten“ unter der Nachricht, nur wenn der Server aus ist."""
+    if state != "offline":
+        return []  # leere Liste entfernt einen vorhandenen Button wieder
+    return [{
+        "type": 1,  # Zeile mit Buttons
+        "components": [{
+            "type": 2,   # Button
+            "style": 5,  # Link-Button (öffnet nur die Webseite)
+            "label": "Server starten",
+            "emoji": {"name": "▶️"},
+            "url": START_LINK,
+        }],
+    }]
 
 
 def discord(method, url, payload=None):
@@ -169,16 +185,21 @@ def discord(method, url, payload=None):
 
 def main():
     state, details = check_server()
-    payload = {"content": "", "embeds": [build_embed(state, details)]}
+    payload = {
+        "content": "",
+        "embeds": [build_embed(state, details)],
+        "components": build_components(state),
+    }
     print(f"Status: {state} {details}")
 
     message_id = ""
     if os.path.exists(MESSAGE_ID_FILE):
         message_id = open(MESSAGE_ID_FILE).read().strip()
 
+    # with_components=true: sonst ignoriert Discord Buttons bei normalen Webhooks
     if message_id:
         try:
-            discord("PATCH", f"{WEBHOOK_URL}/messages/{message_id}", payload)
+            discord("PATCH", f"{WEBHOOK_URL}/messages/{message_id}?with_components=true", payload)
             print("Nachricht aktualisiert.")
             return
         except urllib.error.HTTPError as err:
@@ -186,7 +207,7 @@ def main():
                 raise
             print("Alte Nachricht nicht gefunden, schicke eine neue.")
 
-    message = discord("POST", f"{WEBHOOK_URL}?wait=true", payload)
+    message = discord("POST", f"{WEBHOOK_URL}?wait=true&with_components=true", payload)
     with open(MESSAGE_ID_FILE, "w") as f:
         f.write(message["id"])
     print(f"Neue Statusnachricht erstellt: {message['id']}")
@@ -195,6 +216,9 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+    except urllib.error.HTTPError as exc:  # Discords Begründung mit ausgeben (enthält keine Webhook-URL)
+        print(f"Fehler von Discord: {exc.code} {exc.read().decode(errors='replace')}", file=sys.stderr)
+        sys.exit(1)
     except Exception as exc:
         print(f"Fehler: {exc}", file=sys.stderr)
         sys.exit(1)
